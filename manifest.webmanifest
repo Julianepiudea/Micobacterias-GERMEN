@@ -1,0 +1,16 @@
+{
+  "name": "GERMEN · Micobacterias: calidad e indicadores",
+  "short_name": "Micobacterias",
+  "description": "Control de calidad del libro de actividades TB del INS e indicadores de laboratorio de micobacterias. Funciona sin conexión; los datos de pacientes no salen del equipo.",
+  "lang": "es-CO",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F6F6",
+  "theme_color": "#3B7F86",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

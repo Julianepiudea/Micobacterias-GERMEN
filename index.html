@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Privacidad: la página solo puede cargar archivos de su propio origen y no puede enviar datos a ningún otro sitio. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Micobacterias GERMEN</title>
+<meta name="description" content="Control de calidad e indicadores de laboratorio de micobacterias a partir del libro de actividades TB del INS. Todo se procesa en el equipo: los datos de pacientes no salen de la institución.">
+<meta name="theme-color" content="#3B7F86">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Micobacterias">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+  <div class="logos" aria-label="Red GERMEN">
+    <img class="logo-germen" alt="GERMEN" src="icons/logo_germen.png">
+  </div>
+  <div class="titles">
+    <div class="eyebrow">Red GERMEN · Vigilancia por laboratorio</div>
+    <h1>Micobacterias: calidad del dato e indicadores</h1>
+    <div class="sub" id="sub">Libro de actividades TB · INS — hoja BD_BK_CULTIVO_PM</div>
+  </div>
+  <div class="top-actions">
+    <span class="privacy-pill" id="net-pill" title="Los archivos se procesan solo en este equipo; la página no puede enviar datos a otros sitios.">
+      <svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span id="net-txt">Procesamiento local</span></span>
+    <button class="btn primary pwa-install" id="btn-install" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"/></svg>Instalar app</button>
+    <button class="btn icon" id="btn-theme" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></button>
+  </div>
+</header>
+
+<!-- ============ CARGA ============ -->
+<section id="landing" class="landing">
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Cargar libros de actividades">
+    <div class="big"><svg class="i" viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6M9 14l3-3 3 3"/></svg></div>
+    <h2>Cargar libro(s) de actividades TB</h2>
+    <p>Arrastra aquí uno o varios archivos <b>.xlsb / .xlsx / .xls</b> o haz clic para buscarlos. Puedes combinar varios meses: las órdenes repetidas se cuentan una sola vez.</p>
+    <div class="hint">Plantilla oficial INS · hoja <b>BD_BK_CULTIVO_PM</b></div>
+    <div class="loading" id="loading"><span class="spinner"></span><span id="loading-txt">Leyendo…</span></div>
+    <input type="file" id="file" accept=".xlsx,.xlsb,.xls,.xlsm" multiple hidden>
+  </div>
+  <aside class="privacy-card">
+    <h3><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>Protección de datos de pacientes</h3>
+    <ul>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M8.5 5.5A10 10 0 0 1 21 12a10 10 0 0 1-2 3M5 8a10 10 0 0 0-2 4c2 4 5.5 6 9 6 1.3 0 2.6-.3 3.7-.8"/></svg><span><b>El libro no sale de este equipo.</b> Se lee dentro del navegador; la página tiene bloqueado el envío de datos a cualquier servidor. Instalada, funciona sin internet.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span><b>Lectura mínima.</b> De nombres y apellidos solo se verifica si están diligenciados; el documento se convierte en un código irreversible (SHA-256 con sal aleatoria de la sesión) en un proceso aparte, y las observaciones no se leen.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span><b>Sin almacenamiento.</b> Nada se guarda en el navegador; al cerrar la pestaña o pulsar «Cerrar datos» todo se borra de la memoria. Solo se recuerdan los umbrales.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span><b>Para compartir, solo agregados.</b> Indicadores y resumen de calidad se exportan sin registros; con «Modo compartir» las celdas de 1–4 casos se muestran como «&lt;5». La lista de corrección (n.º de orden y fila) es de uso interno.</span></li>
+    </ul>
+  </aside>
+</section>
+
+<!-- ============ APLICACIÓN ============ -->
+<main id="dash" hidden>
+  <div class="filters" role="region" aria-label="Filtros">
+    <label>Año <select id="f-year"></select></label>
+    <label>Periodo <select id="f-per">
+      <option value="all">Todo</option>
+      <option value="Q1">I trimestre</option><option value="Q2">II trimestre</option><option value="Q3">III trimestre</option><option value="Q4">IV trimestre</option>
+      <option value="M1">Enero</option><option value="M2">Febrero</option><option value="M3">Marzo</option><option value="M4">Abril</option><option value="M5">Mayo</option><option value="M6">Junio</option>
+      <option value="M7">Julio</option><option value="M8">Agosto</option><option value="M9">Septiembre</option><option value="M10">Octubre</option><option value="M11">Noviembre</option><option value="M12">Diciembre</option>
+    </select></label>
+    <label>Tipo TB <select id="f-tb"><option value="all">Todos</option><option value="PULMONAR">Pulmonar</option><option value="EXTRAPULMONAR">Extrapulmonar</option></select></label>
+    <span class="spacer"></span>
+    <label class="toggle no-print" title="Suprime celdas con 1–4 casos (se muestran como <5) en tablas, ventanas emergentes y exportaciones"><input type="checkbox" id="f-suppress" checked> Modo compartir (&lt;5)</label>
+    <button class="btn no-print" id="btn-settings"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Umbrales</button>
+    <button class="btn no-print" id="btn-print"><svg class="i" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="7"/></svg>PDF</button>
+    <button class="btn no-print" id="btn-add"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Agregar libro</button>
+    <button class="btn no-print" id="btn-close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Cerrar datos</button>
+  </div>
+  <div class="context" id="context"></div>
+
+  <nav class="tabs no-print" role="tablist" aria-label="Secciones">
+    <button role="tab" data-tab="calidad" id="tab-calidad"><svg class="i" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Calidad del dato <span class="badge" id="badge-q">–</span></button>
+    <button role="tab" data-tab="tablero" id="tab-tablero"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Tablero</button>
+    <button role="tab" data-tab="ins" id="tab-ins"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>Indicadores INS <span class="badge">27</span></button>
+  </nav>
+
+  <!-- ===== PESTAÑA: CALIDAD ===== -->
+  <section class="panel" id="p-calidad" role="tabpanel">
+    <p class="lead">Revisión automática del diligenciamiento frente a las listas desplegables oficiales de la plantilla INS, la coherencia entre variables, las fechas y los cultivos que siguen abiertos. Corrija en el libro Excel y vuelva a cargarlo.</p>
+    <div class="filters-q">
+      <label>Fecha de corte <input type="date" id="q-corte"></label>
+      <label>Severidad <select id="q-sev"><option value="all">Todas</option><option value="error">Solo errores</option><option value="aviso">Errores y avisos</option></select></label>
+      <label>Área <select id="q-area"><option value="all">Todas</option></select></label>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn no-print" id="btn-q-csv" title="Resumen sin registros individuales: se puede compartir"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"/></svg>Resumen de calidad (CSV)</button>
+      <button class="btn no-print" id="btn-q-list" title="Fila, n.º de orden, columna y valor de cada hallazgo. Uso interno: no compartir."><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h0M4 12h0M4 18h0"/></svg>Lista de corrección (uso interno)</button>
+    </div>
+    <div class="score" id="q-score"></div>
+    <div class="grid g21">
+      <div class="card"><div class="card-h"><div><h3>Hallazgos por regla</h3><div class="desc">Pulse una fila para ver los registros (fila de Excel y n.º de orden)</div></div></div><div class="tbl-wrap" id="q-rules"></div></div>
+      <div>
+        <div class="card"><div class="card-h"><div><h3>Cultivos sin cerrar</h3><div class="desc" id="q-open-desc">Días desde la recepción hasta la fecha de corte</div></div><div class="tools"><button class="btn" data-png="ch-open" title="Descargar PNG">PNG</button></div></div>
+          <div class="legend"><span><i style="background:var(--good)"></i>≤ 42 d</span><span><i style="background:var(--warn)"></i>43–60 d</span><span><i style="background:var(--crit)"></i>&gt; 60 d</span></div>
+          <div class="chart-box short"><canvas id="ch-open" role="img" aria-label="Cultivos sin resultado por antigüedad"></canvas></div>
+          <div class="note" id="q-open-note"></div></div>
+        <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>Completitud de variables básicas</h3><div class="desc">% de registros con la variable diligenciada</div></div></div><div id="q-comp"></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>Calidad por mes de recepción</h3><div class="desc">% de registros sin errores y número de hallazgos por mes</div></div><div class="tools"><button class="btn" data-png="ch-qmes" title="Descargar PNG">PNG</button></div></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Registros sin errores (%)</span><span><i style="background:var(--crit)"></i>Errores</span><span><i style="background:var(--warn)"></i>Avisos</span></div>
+      <div class="chart-box short"><canvas id="ch-qmes" role="img" aria-label="Calidad del dato por mes"></canvas></div></div>
+  </section>
+
+  <!-- ===== PESTAÑA: TABLERO ===== -->
+  <section class="panel" id="p-tablero" role="tabpanel" hidden>
+    <div class="kpis" id="kpi1"></div>
+    <div class="kpis" id="kpi2"></div>
+
+    <div class="section"><h2>Tendencia mensual</h2><span class="unit">Unidad: muestra (orden)</span></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><div><h3>Volumen de pruebas por mes</h3><div class="desc">Cultivos, baciloscopias y pruebas moleculares según fecha de recepción</div></div><div class="tools"><button class="btn" data-png="ch-vol" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Cultivos</span><span><i style="background:var(--s2)"></i>Baciloscopias (muestras)</span><span id="leg-mol"><i style="background:var(--teal)"></i>Molecular</span></div>
+        <div class="chart-box"><canvas id="ch-vol" role="img" aria-label="Volumen mensual de pruebas"></canvas></div></div>
+      <div class="card"><div class="card-h"><div><h3>Positividad y contaminación del cultivo</h3><div class="desc">% mensual con intervalo de confianza del 95 % (Wilson) para la positividad</div></div><div class="tools"><button class="btn" data-png="ch-pos" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i class="line" style="background:var(--s1)"></i>Positividad</span><span><i class="band" style="background:var(--s1)"></i>IC 95 %</span><span><i class="line" style="background:var(--s2)"></i>Contaminación</span></div>
+        <div class="chart-box"><canvas id="ch-pos" role="img" aria-label="Positividad y contaminación mensual"></canvas></div>
+        <div class="note" id="pos-note"></div></div>
+    </div>
+
+    <div class="section"><h2>Resultados de laboratorio</h2><span class="unit">Unidad: muestra (orden)</span></div>
+    <div class="grid g3">
+      <div class="card"><div class="card-h"><div><h3>Cultivo</h3><div class="desc">Distribución de resultados</div></div></div><div id="t-cult"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Baciloscopia</h3><div class="desc">Gradación del primer resultado de cada muestra</div></div></div><div id="t-bk"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Baciloscopia frente a cultivo</h3><div class="desc">Muestras con ambos resultados; referencia: cultivo MTBc</div></div></div><div id="t-conc"></div></div>
+    </div>
+    <div class="grid g21" style="margin-top:14px">
+      <div class="card"><div class="card-h"><div><h3>Tiempo de respuesta del cultivo</h3><div class="desc">Días de recepción a informe, por resultado</div></div><div class="tools"><button class="btn" data-png="ch-tat" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Negativo</span><span><i style="background:var(--s2)"></i>Positivo</span></div>
+        <div class="chart-box"><canvas id="ch-tat" role="img" aria-label="Distribución del tiempo de respuesta del cultivo"></canvas></div>
+        <div class="note" id="tat-note"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Especies identificadas</h3><div class="desc">Cultivos positivos</div></div></div><div id="t-esp"></div></div>
+    </div>
+
+    <div class="section"><h2>Perfil de pacientes y muestras</h2><span class="unit">Pirámide: paciente único · tablas: muestra</span></div>
+    <div class="grid g21">
+      <div class="card"><div class="card-h"><div><h3>Pirámide de edad y sexo</h3><div class="desc" id="pyr-desc">Pacientes únicos estudiados</div></div>
+        <div class="tools"><span class="seg no-print" id="pyr-seg"><button data-v="all" class="on">Estudiados</button><button data-v="mtb">Con MTBc</button></span><button class="btn" data-png="ch-pyr" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Hombres</span><span><i style="background:var(--s2)"></i>Mujeres</span></div>
+        <div class="chart-box tall"><canvas id="ch-pyr" role="img" aria-label="Pirámide de edad y sexo"></canvas></div></div>
+      <div class="card"><div class="card-h"><div><h3>Positividad por tipo de TB</h3><div class="desc">Cultivos válidos (positivo + negativo)</div></div></div><div id="t-tipotb"></div>
+        <div class="card-h" style="margin-top:16px"><div><h3>Municipio de residencia</h3><div class="desc">Muestras y pacientes con MTBc</div></div></div><div id="t-mun"></div></div>
+    </div>
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card"><div class="card-h"><div><h3>Positividad por tipo de muestra</h3><div class="desc">Ocho tipos más frecuentes; el resto se agrupa en «Otras»</div></div></div><div id="t-muestra"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Asegurador (EAPB)</h3><div class="desc">Muestras por asegurador</div></div><div class="tools"><button class="btn" data-png="ch-eapb" title="Descargar PNG">PNG</button></div></div>
+        <div class="chart-box"><canvas id="ch-eapb" role="img" aria-label="Muestras por asegurador"></canvas></div></div>
+    </div>
+    <div style="margin-top:14px;display:flex;justify-content:flex-end"><button class="btn no-print" id="btn-csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"/></svg>CSV agregado del tablero</button></div>
+
+    <details class="methods">
+      <summary>Definiciones y notas metodológicas</summary>
+      <dl>
+        <dt>Unidad de análisis</dt><dd>Los indicadores operativos se calculan por <b>muestra</b> (n.º de orden). Un paciente puede aportar varias muestras; por eso se informan también <b>pacientes únicos</b>, identificados con un código seudónimo del documento.</dd>
+        <dt>Periodo</dt><dd>Mes de la fecha de recepción del cultivo; si falta, fecha de toma, recepción de baciloscopia, recepción molecular o el mes codificado en el n.º de orden.</dd>
+        <dt>Positividad del cultivo</dt><dd>Positivos (cualquier micobacteria) ÷ válidos (positivos + negativos). Se excluyen contaminados, no realizados y pendientes. IC 95 % de Wilson.</dd>
+        <dt>Contaminación</dt><dd>Contaminados ÷ (positivos + negativos + contaminados). Umbral configurable en «Umbrales».</dd>
+        <dt>BK frente a cultivo</dt><dd>Muestras con alguna baciloscopia y cultivo MTBc positivo o negativo. Descriptivo; depende de la mezcla pulmonar/extrapulmonar.</dd>
+        <dt>Tiempo de respuesta</dt><dd>Días entre recepción e informe del cultivo (0–180 d) y de la baciloscopia (0–60 d); mediana y rango intercuartílico.</dd>
+        <dt>Precisión</dt><dd>Con denominadores pequeños los porcentajes son inestables: interprete los IC. Positividad no es incidencia.</dd>
+      </dl>
+    </details>
+  </section>
+
+  <!-- ===== PESTAÑA: INDICADORES INS ===== -->
+  <section class="panel" id="p-ins" role="tabpanel" hidden>
+    <p class="lead">Los 27 indicadores de la hoja «INDICADORES TOTALES» del libro de indicadores TB del INS (17 de pruebas moleculares, 4 de cultivo y 6 de baciloscopia), por trimestre según la fecha de recepción. Se aplican los filtros de año y tipo de TB.</p>
+    <div class="cover" id="ins-cover"></div>
+    <div class="callout warn" id="ins-warn" hidden></div>
+    <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>Indicadores de laboratorio · programa de tuberculosis</h3><div class="desc">Porcentaje (numerador / denominador). <span style="color:var(--warn-ink)">▲</span> = definición ajustada respecto a la fórmula del libro Excel (ver nota).</div></div>
+      <div class="tools"><button class="btn" id="btn-ins-csv">CSV</button></div></div>
+      <div class="tbl-wrap" id="ins-table"></div></div>
+  </section>
+
+  <footer class="foot">
+    <div class="logos"><img class="logo-lab" alt="Labmédico" src="icons/logo_labmedico.jpg"><span class="sep"></span><img class="logo-germen" alt="GERMEN" src="icons/logo_germen.png"></div>
+    <div>Red GERMEN · desarrollado con Labmédico — Laboratorio Médico de Referencia. <span id="ver"></span><br>Generado localmente el <span id="gen-date"></span>. Los exportables de indicadores y resumen de calidad contienen solo información agregada.</div>
+  </footer>
+</main>
+
+<dialog id="dlg">
+  <h3>Umbrales</h3>
+  <p>Se usan para colorear indicadores y para el control de pendientes. Se recuerdan en este equipo.</p>
+  <div class="row"><span>Contaminación máxima cultivo líquido (%)</span><input type="number" id="u-cont" min="0" max="100" step="0.5"></div>
+  <div class="row"><span>Tiempo de respuesta cultivo, mediana máx. (días)</span><input type="number" id="u-tatc" min="1" max="180"></div>
+  <div class="row"><span>Tiempo de respuesta baciloscopia, mediana máx. (días)</span><input type="number" id="u-tatb" min="0" max="30"></div>
+  <div class="row"><span>Baciloscopia sin resultado: alertar después de (días)</span><input type="number" id="u-bkab" min="1" max="30"></div>
+  <div class="actions"><button class="btn" id="u-cancel">Cancelar</button><button class="btn primary" id="u-ok">Aplicar</button></div>
+</dialog>
+</div>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="js/catalogos.js"></script>
+<script src="js/lector.js"></script>
+<script src="js/modelo.js"></script>
+<script src="js/indicadores.js"></script>
+<script src="js/calidad.js"></script>
+<script src="js/tablero.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
