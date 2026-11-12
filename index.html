@@ -172,12 +172,37 @@
 
   <!-- ===== PESTAÑA: INDICADORES INS ===== -->
   <section class="panel" id="p-ins" role="tabpanel" hidden>
-    <p class="lead">Los 27 indicadores de la hoja «INDICADORES TOTALES» del libro de indicadores TB del INS (17 de pruebas moleculares, 4 de cultivo y 6 de baciloscopia), por trimestre según la fecha de recepción. Se aplican los filtros de año y tipo de TB.</p>
-    <div class="cover" id="ins-cover"></div>
+    <div class="ins-hero" id="ins-hero"></div>
     <div class="callout warn" id="ins-warn" hidden></div>
-    <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>Indicadores de laboratorio · programa de tuberculosis</h3><div class="desc">Porcentaje (numerador / denominador). <span style="color:var(--warn-ink)">▲</span> = definición ajustada respecto a la fórmula del libro Excel (ver nota).</div></div>
-      <div class="tools"><button class="btn" id="btn-ins-csv">CSV</button></div></div>
+
+    <div class="section"><h2>Diagnóstico molecular y cultivo</h2><span class="unit">Consolidado del periodo · muestra</span></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><div><h3>Resultado de la prueba molecular</h3><div class="desc">Ensayos realizados según resultado (indicadores 1, 6, 7 y 8)</div></div><div class="tools"><button class="btn" data-png="ch-ins-mol" title="Descargar PNG">PNG</button></div></div>
+        <div class="chart-box"><canvas id="ch-ins-mol" role="img" aria-label="Resultado de la prueba molecular"></canvas></div><div class="note" id="ins-mol-note"></div></div>
+      <div class="card"><div class="card-h"><div><h3>Perfil de resistencia en MTBc detectado</h3><div class="desc">% de muestras con MTBc por prueba molecular (indicadores 2 a 5)</div></div><div class="tools"><button class="btn" data-png="ch-ins-res" title="Descargar PNG">PNG</button></div></div>
+        <div class="chart-box"><canvas id="ch-ins-res" role="img" aria-label="Perfil de resistencia"></canvas></div><div class="note" id="ins-res-note"></div></div>
+    </div>
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card"><div class="card-h"><div><h3>Cultivo de las muestras con MTBc molecular</h3><div class="desc">% por trimestre según resultado del cultivo (indicadores 13, 14, 15 y 17)</div></div><div class="tools"><button class="btn" data-png="ch-ins-cult" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i style="background:var(--crit)"></i>Positivo</span><span><i style="background:var(--neutral)"></i>Negativo</span><span><i style="background:var(--warn)"></i>Contaminado</span><span><i style="background:var(--muted)"></i>No realizado</span><span><i style="background:var(--line)"></i>Pendiente / sin dato</span></div>
+        <div class="chart-box"><canvas id="ch-ins-cult" role="img" aria-label="Cultivo de muestras con MTBc molecular"></canvas></div></div>
+      <div class="card"><div class="card-h"><div><h3>Evolución trimestral de indicadores clave</h3><div class="desc">Porcentaje por trimestre de recepción</div></div><div class="tools"><button class="btn" data-png="ch-ins-tend" title="Descargar PNG">PNG</button></div></div>
+        <div class="legend"><span><i class="line" style="background:var(--crit)"></i>Resistencia a R (3)</span><span><i class="line" style="background:var(--teal)"></i>Molecular ≤ 2 d (9.1)</span><span><i class="line" style="background:var(--warn)"></i>Contaminación (1 C)</span><span><i class="line" style="background:var(--s1)"></i>BK positivas (2 B)</span></div>
+        <div class="chart-box"><canvas id="ch-ins-tend" role="img" aria-label="Evolución trimestral"></canvas></div></div>
+    </div>
+
+    <div class="section"><h2>Los 27 indicadores</h2><span class="unit">Valor consolidado · barras por trimestre</span></div>
+    <div class="ins-bar no-print">
+      <span class="seg" id="ins-vista"><button data-v="tarjetas" class="on">Tarjetas</button><button data-v="tabla">Tabla INS</button></span>
+      <span class="seg" id="ins-sec"><button data-v="all" class="on">Todos</button><button data-v="Pruebas moleculares">Moleculares</button><button data-v="Cultivo">Cultivo</button><button data-v="Baciloscopia">Baciloscopia</button></span>
+      <span style="flex:1"></span>
+      <span class="ins-ley"><i class="ok"></i>Cumple meta <i class="bad"></i>No cumple <i class="none"></i>Sin meta · pulse «Meta» para definirla</span>
+      <button class="btn" id="btn-ins-csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"/></svg>CSV para el INS</button>
+    </div>
+    <div class="ins-cards" id="ins-cards"></div>
+    <div class="card" id="ins-tabla-card" hidden><div class="card-h"><div><h3>Indicadores de laboratorio · programa de tuberculosis</h3><div class="desc">Porcentaje (numerador / denominador). <span style="color:var(--warn-ink)">▲</span> = definición ajustada respecto a la fórmula del libro Excel (ver nota).</div></div></div>
       <div class="tbl-wrap" id="ins-table"></div></div>
+    <p class="note" style="margin-top:12px">Indicadores de la hoja «INDICADORES TOTALES» del libro TB del INS, por trimestre según la fecha de recepción; se aplican los filtros de año y tipo de TB. Las metas son las que defina el laboratorio o la red (se recuerdan en este equipo); las de contaminación y oportunidad usan los umbrales configurados.</p>
   </section>
 
   <footer class="foot">
@@ -193,7 +218,8 @@
   <div class="row"><span>Tiempo de respuesta cultivo, mediana máx. (días)</span><input type="number" id="u-tatc" min="1" max="180"></div>
   <div class="row"><span>Tiempo de respuesta baciloscopia, mediana máx. (días)</span><input type="number" id="u-tatb" min="0" max="30"></div>
   <div class="row"><span>Baciloscopia sin resultado: alertar después de (días)</span><input type="number" id="u-bkab" min="1" max="30"></div>
-  <div class="actions"><button class="btn" id="u-cancel">Cancelar</button><button class="btn primary" id="u-ok">Aplicar</button></div>
+  <p style="margin-top:14px">Gráficos y tablas se personalizan con el botón «Editar» de cada tarjeta.</p>
+  <div class="actions"><button class="btn" id="u-reset" type="button" title="Quita títulos, colores, tipos de gráfico, columnas ocultas y metas personalizadas">Restablecer personalización</button><span style="flex:1"></span><button class="btn" id="u-cancel">Cancelar</button><button class="btn primary" id="u-ok">Aplicar</button></div>
 </dialog>
 </div>
 
@@ -205,6 +231,7 @@
 <script src="js/indicadores.js"></script>
 <script src="js/calidad.js"></script>
 <script src="js/tablero.js"></script>
+<script src="js/editor.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -26,7 +26,7 @@ function baseOpts(){
     scales:{x:{grid:{display:false},border:{color:cssv('--line')},ticks:{color:ink2}},y:{beginAtZero:true,grid:{color:grid},border:{display:false},ticks:{color:ink2,precision:0}}}};
 }
 const bar=(label,data,color,extra={})=>({label,data,backgroundColor:color,hoverBackgroundColor:color,borderRadius:4,borderSkipped:'start',maxBarThickness:28,categoryPercentage:.72,barPercentage:.9,borderColor:cssv('--surface'),borderWidth:{left:0,right:0,top:0,bottom:0},...extra});
-function mk(id,cfg){if(CHARTS[id])CHARTS[id].destroy();CHARTS[id]=new Chart($(id),cfg);}
+function mk(id,cfg){Editor.registrar(id,cfg);}  // editor.js aplica la personalización guardada
 
 /* === RENDER PRINCIPAL === */
 function render(){

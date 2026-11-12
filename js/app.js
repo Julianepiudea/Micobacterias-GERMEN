@@ -1,13 +1,13 @@
 /* app.js — Interfaz: carga de libros, filtros, pestañas, calidad del dato, indicadores INS,
    exportaciones, instalación como aplicación y service worker. */
 'use strict';
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 
 /* === ESTADO (solo en memoria) === */
 let RECORDS = new Map();          // clave archivo|orden → registro derivado (sin nombres ni documento)
 let FILES = [], CHARTS = {}, EXPORT = [], SUPPRESS = true, PYR = 'all', SALT = null;
 let DUPS = { mismoLibro: [], entreLibros: [] };
-const STATE = { tab: 'calidad', corte: null, qc: null, open: new Set() };
+const STATE = { tab: 'calidad', corte: null, qc: null, open: new Set(), insVista: 'tarjetas', insSec: 'all', metaEdit: null };
 const TH = { cont: 10, tatC: 56, tatB: 2, bkAb: 3 };
 try { Object.assign(TH, JSON.parse(localStorage.getItem('mico-umbrales') || '{}')); } catch (e) { /* sin almacenamiento */ }
 
@@ -115,6 +115,7 @@ function refresh() {
     $('sub').textContent = FILES.length === 1 ? FILES[0].name : FILES.length + ' libros combinados';
     $('context').innerHTML = `<span>Archivos: <b>${FILES.map(f => esc(f.name) + ' (' + fmtInt(f.n) + ')').join(' · ')}</b></span><span>Rango de fechas: <b>${dates.length ? dates[0].toLocaleDateString('es-CO') + ' – ' + dates[dates.length - 1].toLocaleDateString('es-CO') : '—'}</b></span>`;
   }
+  Editor.aplicarTextos();
 }
 
 /* === CALIDAD DEL DATO === */
@@ -216,13 +217,110 @@ function celdaINS(def, x) {
   if (def.tipo === 'razon') return `<b>${fmt1(x.n / x.d)}</b><span>${fmtInt(x.n)}/${fmtInt(x.d)}</span>`;
   return hidden(x.n) ? `<b>—</b><span>&lt;5/${fmtInt(x.d)}</span>` : `<b>${fmt1(x.n / x.d * 100)} %</b><span>${fmtInt(x.n)}/${fmtInt(x.d)}</span>`;
 }
+/* Metas: las define el laboratorio (se recuerdan en este equipo). Por defecto, los umbrales configurados. */
+let METAS = {};
+try { METAS = JSON.parse(localStorage.getItem('mico-metas') || '{}') || {}; } catch (e) { /* sin almacenamiento */ }
+const guardarMetas = () => { try { localStorage.setItem('mico-metas', JSON.stringify(METAS)); } catch (e) { /* sin almacenamiento */ } };
+function metaDe(cod) {
+  if (cod in METAS) return METAS[cod];
+  return ({ '1 C': { op: '<=', v: TH.cont }, '4 C': { op: '<=', v: TH.tatC }, '6 B': { op: '<=', v: TH.tatB } })[cod] || null;
+}
+/* Sentido deseable de cada indicador (para colorear la variación entre trimestres) */
+const INS_MEJOR = { '5': 'bajo', '7': 'bajo', '8': 'bajo', '9': 'bajo', '9.1': 'alto', '10': 'alto', '11': 'alto', '12': 'alto', '15': 'bajo', '17': 'bajo', '1 C': 'bajo', '4 C': 'bajo', '5 B': 'bajo', '6 B': 'bajo' };
+const ROM = ['I', 'II', 'III', 'IV'];
+function valINS(def, x) {
+  if (def.tipo === 'conteo') return x.n || 0;
+  if (def.tipo === 'media') return x.d ? x.v : null;
+  if (!x.d || hidden(x.n)) return null;
+  return def.tipo === 'razon' ? x.n / x.d : x.n / x.d * 100;
+}
+const unidadINS = def => def.tipo === 'prop' ? ' %' : def.tipo === 'media' ? ' d' : '';
+function txtINS(def, v) { if (v == null) return '—'; if (def.tipo === 'conteo') return fmtN(v); return fmt1(v) + unidadINS(def); }
+function cumpleINS(def, v) { const m = metaDe(def.cod); if (!m || v == null) return null; return m.op === '<=' ? v <= m.v : v >= m.v; }
+
+function sparkINS(def, vals) {
+  const W = 220, H = 52, bw = 38, gap = (W - 4 * bw) / 3, m = metaDe(def.cod);
+  const mx = Math.max(1e-9, ...vals.filter(v => v != null), m ? m.v : 0) * 1.08;
+  let s = `<svg class="spk" viewBox="0 0 ${W} ${H + 16}" role="img" aria-label="Valor por trimestre">`;
+  vals.forEach((v, i) => {
+    const x = i * (bw + gap);
+    s += v == null ? `<rect class="nd" x="${x}" y="${H - 2}" width="${bw}" height="2"/>`
+      : `<rect class="b${i === 3 || vals.slice(i + 1).every(z => z == null) ? ' last' : ''}" x="${x}" y="${(H - Math.max(3, v / mx * H)).toFixed(1)}" width="${bw}" height="${Math.max(3, v / mx * H).toFixed(1)}" rx="4"><title>Trimestre ${ROM[i]}: ${txtINS(def, v)}</title></rect>`;
+    s += `<text x="${x + bw / 2}" y="${H + 13}">${ROM[i]}</text>`;
+  });
+  if (m) { const y = (H - m.v / mx * H).toFixed(1); s += `<line class="meta" x1="0" x2="${W}" y1="${y}" y2="${y}"><title>Meta ${m.op === '<=' ? '≤' : '≥'} ${fmt1(m.v)}</title></line>`; }
+  return s + '</svg>';
+}
+function tarjetaINS({ def, T, total }) {
+  const v = valINS(def, total), ok = cumpleINS(def, v), m = metaDe(def.cod), vals = T.map(x => valINS(def, x));
+  const idx = vals.map((x, i) => x == null ? null : i).filter(i => i != null);
+  let delta = '<span class="dl eq">Un solo trimestre con datos</span>';
+  if (!idx.length) delta = '<span class="dl eq">Sin datos por trimestre</span>';
+  if (idx.length >= 2) {
+    const a = idx[idx.length - 2], b = idx[idx.length - 1], dv = vals[b] - vals[a], dir = INS_MEJOR[def.cod];
+    const cls = Math.abs(dv) < 1e-9 ? 'eq' : !dir ? 'neu' : (dv < 0) === (dir === 'bajo') ? 'up' : 'down';
+    const u = def.tipo === 'prop' ? ' pp' : def.tipo === 'media' ? ' d' : '';
+    delta = `<span class="dl ${cls}">${dv > 0 ? '▲' : dv < 0 ? '▼' : '='} ${def.tipo === 'conteo' ? fmtInt(Math.abs(dv)) : fmt1(Math.abs(dv))}${u}<small> trim. ${ROM[b]} vs ${ROM[a]}</small></span>`;
+  }
+  const nd = def.tipo === 'conteo' ? 'consolidado del periodo' : def.tipo === 'media' ? (total.d ? `mediana ${fmt1(total.med)} d · ${fmtInt(total.d)} muestras` : 'sin muestras con fechas') : total.d ? `${hidden(total.n) ? '&lt;5' : fmtInt(total.n)} de ${fmtInt(total.d)}` : 'sin denominador';
+  const estado = ok == null ? 'none' : ok ? 'ok' : 'bad';
+  const editando = STATE.metaEdit === def.cod;
+  const metaTxt = m ? `Meta ${m.op === '<=' ? '≤' : '≥'} ${fmt1(m.v)}${unidadINS(def)}` : 'Definir meta';
+  const pctBar = def.tipo === 'prop' && v != null ? `<div class="ic-pbar"><i style="width:${Math.min(100, v)}%"></i>${m && def.tipo === 'prop' ? `<b style="left:${Math.min(100, m.v)}%"></b>` : ''}</div>` : '';
+  return `<article class="ic ${estado}" data-cod="${esc(def.cod)}">
+    <header><span class="cod">${esc(def.cod)}</span>${def.ajuste ? `<span class="ajc" title="${esc(def.ajuste)}">▲ ajustado</span>` : ''}${ok != null ? `<span class="st ${estado}">${ok ? '✓ cumple' : '✕ no cumple'}</span>` : ''}</header>
+    <h4 title="${esc(def.construccion)}">${esc(def.nombre)}</h4>
+    <div class="ic-v">${v == null ? '—' : def.tipo === 'conteo' ? fmtN(v) : fmt1(v)}<small>${v == null ? '' : unidadINS(def)}</small></div>
+    <div class="ic-nd">${nd}</div>${pctBar}
+    ${sparkINS(def, vals)}
+    <footer>${delta}<button class="meta-chip" type="button" data-meta="${esc(def.cod)}">${metaTxt}</button></footer>
+    ${editando ? `<div class="meta-ed" data-cod="${esc(def.cod)}"><select data-meta-op><option value="<="${m && m.op === '<=' ? ' selected' : ''}>≤ como máximo</option><option value=">="${m && m.op === '>=' ? ' selected' : ''}>≥ como mínimo</option></select><input data-meta-v type="number" step="any" value="${m ? m.v : ''}" placeholder="valor${unidadINS(def)}"><button class="btn primary" type="button" data-meta-ok>Guardar</button><button class="btn" type="button" data-meta-del>Sin meta</button></div>` : ''}
+  </article>`;
+}
+function anilloINS(p, color, centro, etiqueta, sub) {
+  const r = 42, C = 2 * Math.PI * r, off = C * (1 - Math.min(100, Math.max(0, p || 0)) / 100);
+  return `<div class="ring"><div class="ring-g"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}" class="rb"/><circle cx="50" cy="50" r="${r}" class="rf" transform="rotate(-90 50 50)" style="stroke:${color};stroke-dasharray:${C.toFixed(1)};stroke-dashoffset:${off.toFixed(1)};--c:${C.toFixed(1)}"/></svg><div class="rv">${centro}</div></div><div class="rl">${etiqueta}</div><div class="rs">${sub}</div></div>`;
+}
+
 function renderINS() {
   const rows = filtered({ periodo: false });
   const res = Indicadores.calcular(rows);
   STATE.ins = res;
-  const conDatos = res.filter(x => (x.total.d || x.total.n)).length, ajustes = Indicadores.DEF.filter(d => d.ajuste).length;
+  const R = cod => res.find(x => x.def.cod === cod);
+  const ajustes = Indicadores.DEF.filter(d => d.ajuste).length;
   const hayMol = rows.some(r => r.hasM);
-  $('ins-cover').innerHTML = `<div><b>27 / 27</b>indicadores del libro INS calculados (17 moleculares y el subindicador 9.1, 4 de cultivo, 6 de baciloscopia)</div><div><b>${conDatos} / ${res.length}</b>filas con datos en la selección actual (${fmtInt(rows.length)} muestras)</div><div><b>${ajustes}</b>definiciones corregidas respecto a fórmulas del libro Excel con errores (marcadas con ▲)</div>`;
+
+  /* --- portada con anillos --- */
+  const conMeta = res.map(x => cumpleINS(x.def, valINS(x.def, x.total))).filter(x => x != null);
+  const ringDe = (cod, etq, colorBase) => {
+    const x = R(cod), v = valINS(x.def, x.total), ok = cumpleINS(x.def, v);
+    const col = ok == null ? colorBase : ok ? '#5fe08a' : '#ff7a7a';
+    const sub = x.total.d ? `${hidden(x.total.n) ? '&lt;5' : fmtInt(x.total.n)} de ${fmtInt(x.total.d)}${ok == null ? '' : ok ? ' · cumple meta' : ' · fuera de meta'}` : 'sin datos';
+    return anilloINS(v, col, v == null ? '—' : `${fmt1(v)}<small>%</small>`, `${etq} <span>(${cod})</span>`, sub);
+  };
+  const anio = $('f-year').value === 'all' ? 'Todos los años' : 'Año ' + $('f-year').value;
+  const tbTxt = $('f-tb').value === 'all' ? 'TB pulmonar y extrapulmonar' : 'TB ' + $('f-tb').selectedOptions[0].text.toLowerCase();
+  const mtbN = R('3').total.d;
+  $('ins-hero').innerHTML = `
+    <svg class="hero-bac" viewBox="0 0 400 220" aria-hidden="true"><g stroke-linecap="round" fill="none"><path d="M40 170 C90 120 140 120 200 90"/><path d="M90 200 C150 160 200 150 260 110"/><path d="M180 60 C220 40 260 40 310 20"/><path d="M260 150 C300 130 330 130 380 100"/><path d="M300 70 C330 60 350 60 380 45"/></g></svg>
+    <div class="hero-l">
+      <div class="eyebrow">Indicadores INS · laboratorio del programa de tuberculosis</div>
+      <h2>${esc(anio)}</h2>
+      <div class="hero-sub">${esc(tbTxt)} · ${fmtInt(rows.length)} muestras · cuatro trimestres y consolidado</div>
+      <div class="hero-n">
+        <div><b>${fmtN(R('1').total.n)}</b><span>ensayos moleculares</span></div>
+        <div><b>${fmtN(mtbN)}</b><span>con MTBc detectado</span></div>
+        <div><b>${fmtN(R('1 B').total.n)}</b><span>baciloscopias</span></div>
+      </div>
+      <div class="hero-m"><span><b>${conMeta.filter(Boolean).length}</b> de ${conMeta.length} indicadores con meta la cumplen</span><span><b>${ajustes}</b> definiciones ajustadas ▲</span></div>
+    </div>
+    <div class="hero-r">
+      ${ringDe('3', 'Resistencia a rifampicina', '#ff5c9a')}
+      ${ringDe('9.1', 'Molecular informado ≤ 2 días', '#7fd6dc')}
+      ${ringDe('1 C', 'Contaminación del cultivo', '#ffc24a')}
+      ${ringDe('2 B', 'Baciloscopias positivas', '#8dbfe8')}
+    </div>`;
+
   const w = [];
   if (!hayMol) w.push('El libro no tiene datos de pruebas moleculares (columnas Q–X): los indicadores 1 a 17 y 3 C quedan vacíos.');
   if ($('f-year').value === 'all' && new Set(rows.map(r => r.fecha && r.fecha.getFullYear()).filter(Boolean)).size > 1) w.push('Con «Año: Todos» los trimestres suman varios años. Seleccione un año para el reporte trimestral al INS.');
@@ -230,6 +328,51 @@ function renderINS() {
   const sinF = rows.filter(r => !r.fecha).length; if (sinF) w.push(`${fmtInt(sinF)} muestras sin ninguna fecha solo cuentan en el consolidado.`);
   $('ins-warn').hidden = !w.length;
   $('ins-warn').innerHTML = `<svg class="i" viewBox="0 0 24 24"><path d="M12 8v5M12 17h0"/><circle cx="12" cy="12" r="9"/></svg><div>${w.map(esc).join('<br>')}</div>`;
+  /* --- gráficos --- */
+  const pc = (n, d) => d && !hidden(n) ? n / d * 100 : null;
+  const ens = R('1').total.n, nd = R('6').total.n, er = R('7').total.n, inv = R('8').total.n, otro = Math.max(0, ens - mtbN - nd - er - inv);
+  const molCats = [['MTBc detectado', mtbN, cssv('--crit')], ['No detectado', nd, cssv('--neutral')], ['Error', er, cssv('--warn')], ['Inválido', inv, cssv('--serious')]].concat(otro ? [['Otro resultado', otro, cssv('--muted')]] : []);
+  const oM = baseOpts(); oM.scales = {}; oM.cutout = '62%'; oM.interaction = { mode: 'nearest', intersect: true };
+  oM.plugins.legend = { display: true, position: 'right', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8, color: cssv('--ink2'), generateLabels: ch => ch.data.labels.map((l, i) => ({ text: `${l}  ${fmtN(ch.data.datasets[0].data[i])}`, fillStyle: ch.data.datasets[0].backgroundColor[i], strokeStyle: ch.data.datasets[0].backgroundColor[i], pointStyle: 'circle', index: i, hidden: !ch.getDataVisibility(i), fontColor: cssv('--ink2') })) } };
+  oM.plugins.tooltip.callbacks = { label: c => ` ${c.label}: ${fmtN(c.raw)} (${ens && !hidden(c.raw) ? fmt1(c.raw / ens * 100) + ' %' : '—'})` };
+  mk('ch-ins-mol', { type: 'doughnut', data: { labels: molCats.map(c => c[0]), datasets: [{ label: 'Ensayos', data: molCats.map(c => c[1]), backgroundColor: molCats.map(c => c[2]), hoverBackgroundColor: molCats.map(c => c[2]), borderColor: cssv('--surface'), borderWidth: 2 }] }, options: oM });
+  $('ins-mol-note').textContent = ens ? `${fmtN(ens)} ensayos; MTBc detectado en ${fmt1(pc(mtbN, ens))} %. Errores e inválidos: ${fmt1(pc(er + inv, ens))} %.` : 'Sin pruebas moleculares en la selección.';
+
+  const resCats = [['Sensible a R', '2', cssv('--good')], ['Resistente a R (con o sin H)', '3', cssv('--crit')], ['Resistente solo a H', '4', cssv('--serious')], ['No interpretable', '5', cssv('--neutral')]];
+  const resN = {}; resCats.forEach(([l, c]) => resN[l] = R(c).total);
+  const oR = baseOpts(); oR.indexAxis = 'y'; oR.interaction = { mode: 'nearest', axis: 'y', intersect: false };
+  oR.scales = { x: { beginAtZero: true, max: 100, grid: { color: cssv('--grid') }, border: { display: false }, ticks: { callback: v => v + ' %' } }, y: { grid: { display: false }, border: { color: cssv('--line') } } };
+  oR.plugins.tooltip.callbacks = { label: c => { const t = resN[c.label]; return t && t.d ? ` ${c.raw == null ? '—' : fmt1(c.raw) + ' %'} · ${fmtN(t.n)}/${fmtInt(t.d)}` : ' sin datos'; } };
+  oR.plugins.etiquetas = { display: true };
+  mk('ch-ins-res', { type: 'bar', data: { labels: resCats.map(c => c[0]), datasets: [bar('% de MTBc', resCats.map(([l]) => pc(resN[l].n, resN[l].d)), resCats.map(c => c[2]), { maxBarThickness: 34, borderSkipped: 'start' })] }, options: oR });
+  $('ins-res-note').textContent = mtbN ? `Base: ${fmtN(mtbN)} muestras con MTBc detectado. Las categorías pueden superponerse (p. ej. R resistente con H no interpretable).` : 'Sin MTBc detectado por prueba molecular.';
+
+  const cuartos = [...R('13').T, R('13').total].map((_, i) => i);
+  const labQ = ['Trim. I', 'Trim. II', 'Trim. III', 'Trim. IV', 'Anual'];
+  const serie = cod => cuartos.map(i => { const x = i < 4 ? R(cod).T[i] : R(cod).total; return x.d ? x.n / x.d * 100 : null; });
+  const sPos = serie('13'), sNeg = serie('14'), sNR = serie('15'), sCont = serie('17');
+  const sOtro = cuartos.map(i => sPos[i] == null ? null : Math.max(0, 100 - sPos[i] - sNeg[i] - sNR[i] - sCont[i]));
+  const oC = baseOpts(); oC.scales.x.stacked = true; oC.scales.y.stacked = true; oC.scales.y.max = 100; oC.scales.y.ticks = { callback: v => v + ' %', color: cssv('--ink2') };
+  const dQ = i => i < 4 ? R('13').T[i].d : R('13').total.d;
+  oC.plugins.tooltip.callbacks = { title: c => `${c[0].label} · ${fmtN(dQ(c[0].dataIndex))} muestras MTBc`, label: c => ` ${c.dataset.label}: ${c.raw == null ? '—' : fmt1(c.raw) + ' %'}` };
+  mk('ch-ins-cult', { type: 'bar', data: { labels: labQ, datasets: [bar('Positivo', sPos, cssv('--crit'), { borderRadius: 0 }), bar('Negativo', sNeg, cssv('--neutral'), { borderRadius: 0 }), bar('Contaminado', sCont, cssv('--warn'), { borderRadius: 0 }), bar('No realizado', sNR, cssv('--muted'), { borderRadius: 0 }), bar('Pendiente / sin dato', sOtro, cssv('--line'), { borderRadius: 0 })] }, options: oC });
+
+  const tend = [['Resistencia a R (3)', '3', cssv('--crit')], ['Molecular ≤ 2 d (9.1)', '9.1', cssv('--teal')], ['Contaminación (1 C)', '1 C', cssv('--warn')], ['BK positivas (2 B)', '2 B', cssv('--s1')]];
+  const oT = baseOpts(); oT.scales.y.ticks = { callback: v => v + ' %', color: cssv('--ink2') }; oT.scales.y.suggestedMax = 100;
+  oT.plugins.tooltip.callbacks = { label: c => ` ${c.dataset.label}: ${c.raw == null ? '—' : fmt1(c.raw) + ' %'}` };
+  mk('ch-ins-tend', { type: 'line', data: { labels: ROM.map(r => 'Trim. ' + r), datasets: tend.map(([l, c, col]) => ({ label: l, data: R(c).T.map(x => valINS(R(c).def, x)), borderColor: col, backgroundColor: col, borderWidth: 2.5, pointRadius: 5, pointHoverRadius: 7, pointBorderColor: cssv('--surface'), pointBorderWidth: 2, tension: .3, spanGaps: true })) }, options: oT });
+
+  /* --- tarjetas de los 27 indicadores --- */
+  const vista = STATE.insVista || 'tarjetas', secSel = STATE.insSec || 'all';
+  $('ins-cards').hidden = vista !== 'tarjetas'; $('ins-tabla-card').hidden = vista !== 'tabla'; $('ins-sec').hidden = vista !== 'tarjetas';
+  let hc = '', secAct = '';
+  res.filter(x => secSel === 'all' || x.def.sec === secSel).forEach(x => {
+    if (x.def.sec !== secAct) { secAct = x.def.sec; const n = res.filter(y => y.def.sec === secAct).length; hc += `<h3 class="ins-sec">${esc(secAct)}<span>${n} indicadores</span></h3>`; }
+    hc += tarjetaINS(x);
+  });
+  $('ins-cards').innerHTML = hc;
+
+  /* --- tabla en formato del libro INS --- */
   let h = '<table class="ins"><thead><tr><th>N.º</th><th>Indicador</th><th>Trim. I</th><th>Trim. II</th><th>Trim. III</th><th>Trim. IV</th><th>Consolidado</th></tr></thead><tbody>', sec = '';
   res.forEach(({ def, T, total }) => {
     if (def.sec !== sec) { sec = def.sec; h += `<tr class="sec"><td colspan="7">${esc(sec)}</td></tr>`; }
@@ -261,7 +404,7 @@ function closeData() {
   Object.values(CHARTS).forEach(c => c.destroy()); CHARTS = {};
   RECORDS = new Map(); FILES = []; EXPORT = []; SALT = null; DUPS = { mismoLibro: [], entreLibros: [] }; STATE.qc = null; STATE.ins = null; STATE.open.clear();
   if (worker) { worker.terminate(); worker = null; }
-  ['t-cult', 't-bk', 't-conc', 't-esp', 't-tipotb', 't-mun', 't-muestra', 'kpi1', 'kpi2', 'context', 'q-score', 'q-rules', 'q-comp', 'ins-table', 'ins-cover'].forEach(id => $(id).innerHTML = '');
+  ['t-cult', 't-bk', 't-conc', 't-esp', 't-tipotb', 't-mun', 't-muestra', 'kpi1', 'kpi2', 'context', 'q-score', 'q-rules', 'q-comp', 'ins-table', 'ins-hero', 'ins-cards'].forEach(id => $(id).innerHTML = '');
   $('dash').hidden = true; $('landing').hidden = false; $('sub').textContent = 'Libro de actividades TB · INS — hoja BD_BK_CULTIVO_PM';
 }
 
@@ -285,6 +428,21 @@ $('q-corte').addEventListener('change', e => { const [y, m, d] = e.target.value.
 $('btn-q-csv').addEventListener('click', exportCalidadResumen);
 $('btn-q-list').addEventListener('click', exportCalidadLista);
 $('btn-ins-csv').addEventListener('click', exportINS);
+const segINS = (id, k) => $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; STATE[k] = b.dataset.v; $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderINS(); });
+segINS('ins-vista', 'insVista'); segINS('ins-sec', 'insSec');
+$('ins-cards').addEventListener('click', e => {
+  const chip = e.target.closest('[data-meta]');
+  if (chip) { STATE.metaEdit = STATE.metaEdit === chip.dataset.meta ? null : chip.dataset.meta; renderINS(); const inp = document.querySelector('.meta-ed input'); if (inp) inp.focus(); return; }
+  const ed = e.target.closest('.meta-ed'); if (!ed) return;
+  const cod = ed.dataset.cod;
+  if (e.target.closest('[data-meta-ok]')) { const v = parseFloat(ed.querySelector('[data-meta-v]').value); if (isNaN(v)) { delete METAS[cod]; } else METAS[cod] = { op: ed.querySelector('[data-meta-op]').value, v }; }
+  else if (e.target.closest('[data-meta-del]')) METAS[cod] = null;
+  else return;
+  guardarMetas(); STATE.metaEdit = null; renderINS();
+});
+$('ins-cards').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-meta-v]')) { e.preventDefault(); e.target.closest('.meta-ed').querySelector('[data-meta-ok]').click(); } if (e.key === 'Escape' && STATE.metaEdit) { STATE.metaEdit = null; renderINS(); } });
+$('u-reset').addEventListener('click', () => { if (!confirm('¿Restablecer títulos, colores, tipos de gráfico, columnas y metas personalizadas?')) return; METAS = {}; guardarMetas(); $('dlg').close(); Editor.restablecerTodo(); });
+Editor.iniciar();
 $('btn-csv').addEventListener('click', exportCSV);
 $('btn-print').addEventListener('click', () => window.print());
 $('btn-close').addEventListener('click', () => { if (confirm('¿Borrar de la memoria todos los datos cargados?')) closeData(); });
